@@ -1,47 +1,46 @@
 <?php
-// Enhanced Database Connection with Environment Support
-// Supports both local development and cloud deployment (Railway, Heroku, etc.)
+// PostgreSQL Database Connection for Render.com
+// Your database credentials from Render:
+// Host: dpg-d0rkitp5pdvs73e381c0-a
+// Database: webservices_colour_user  
+// Password: 0r1wd0EzpKkObj5Ba8WFJ5q9BLTRXitL
+// Port: 5432
 
-// Database configuration - uses environment variables for production
-$host = $_ENV['MYSQLHOST'] ?? $_SERVER['MYSQLHOST'] ?? 'localhost';
-$username = $_ENV['MYSQLUSER'] ?? $_SERVER['MYSQLUSER'] ?? 'root';
-$password = $_ENV['MYSQLPASSWORD'] ?? $_SERVER['MYSQLPASSWORD'] ?? '';
-$database = $_ENV['MYSQLDATABASE'] ?? $_SERVER['MYSQLDATABASE'] ?? 'webservices_colour';
-$port = $_ENV['MYSQLPORT'] ?? $_SERVER['MYSQLPORT'] ?? 3306;
+$host = $_ENV['PGHOST'] ?? $_SERVER['PGHOST'] ?? 'dpg-d0rkitp5pdvs73e381c0-a';
+$username = $_ENV['PGUSER'] ?? $_SERVER['PGUSER'] ?? 'webservices_colour_user';
+$password = $_ENV['PGPASSWORD'] ?? $_SERVER['PGPASSWORD'] ?? '0r1wd0EzpKkObj5Ba8WFJ5q9BLTRXitL';
+$database = $_ENV['PGDATABASE'] ?? $_SERVER['PGDATABASE'] ?? 'webservices_colour_user';
+$port = $_ENV['PGPORT'] ?? $_SERVER['PGPORT'] ?? 5432;
 
-
-// Establish database connection with proper error handling
+// Create PostgreSQL connection
 try {
-    $con = new mysqli($host, $username, $password, $database, $port);
+    $dsn = "pgsql:host=$host;port=$port;dbname=$database;sslmode=require";
+    $con = new PDO($dsn, $username, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
     
-    // Check connection
-    if ($con->connect_error) {
-        error_log("Database Connection Failed: " . $con->connect_error);
-        die("Database connection failed. Please try again later.");
-    }
+    // Set timezone
+    $con->exec("SET timezone = 'Asia/Kolkata'");
     
-    // Set charset to prevent encoding issues
-    $con->set_charset("utf8mb4");
-    
-} catch (Exception $e) {
-    error_log("Database Error: " . $e->getMessage());
-    die("Database service unavailable. Please try again later.");
+} catch (PDOException $e) {
+    error_log("Database Connection Failed: " . $e->getMessage());
+    die("Database connection failed. Please try again later.");
 }
 
-// Set timezone
+// Set timezone for PHP
 date_default_timezone_set("Asia/Kolkata");
 
-// Enhanced encryption function with stronger security
+// Enhanced encryption function
 function encryptor($action, $string) {
     $output = false;
     
-    // Use environment variables for encryption keys in production
     $secret_key = $_ENV['ENCRYPTION_KEY'] ?? $_SERVER['ENCRYPTION_KEY'] ?? 'your-super-secret-key-change-me';
     $secret_iv = $_ENV['ENCRYPTION_IV'] ?? $_SERVER['ENCRYPTION_IV'] ?? 'your-secret-iv-change-me-too';
     
     $encrypt_method = "AES-256-CBC";
     
-    // Generate secure key and IV
     $key = hash('sha256', $secret_key);
     $iv = substr(hash('sha256', $secret_iv), 0, 16);
     
@@ -63,8 +62,8 @@ function encryptor($action, $string) {
 
 // Generate secure reference code
 function refcode() {
-    $characters = '123456789ABCDEFGHIJKLMNPQRSTUVWXYZ'; // Added letters, removed confusing chars
-    $length = 6; // Increased length for better uniqueness
+    $characters = '123456789ABCDEFGHIJKLMNPQRSTUVWXYZ';
+    $length = 6;
     $randomString = '';
     
     for ($i = 0; $i < $length; $i++) {
@@ -77,7 +76,7 @@ function refcode() {
 // Generate secure OTP
 function generateOTP() {
     $characters = '123456789';
-    $length = 6; // Increased OTP length for better security
+    $length = 6;
     $randomString = '';
     
     for ($i = 0; $i < $length; $i++) {
@@ -87,153 +86,113 @@ function generateOTP() {
     return $randomString;
 }
 
-// Improved user function with prepared statements
+// Updated user function for PostgreSQL
 function user($con, $field, $id) {
-    // Validate field name to prevent SQL injection
     $allowed_fields = ['id', 'username', 'mobile', 'email', 'code', 'owncode', 'status', 'created_at'];
     if (!in_array($field, $allowed_fields)) {
         return false;
     }
     
-    $stmt = $con->prepare("SELECT `$field` FROM `tbl_user` WHERE `id` = ?");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
+    try {
+        $stmt = $con->prepare("SELECT $field FROM tbl_user WHERE id = ?");
+        $stmt->execute([$id]);
+        $result = $stmt->fetch();
+        
+        return $result ? $result[$field] : false;
+    } catch (PDOException $e) {
+        error_log("User query failed: " . $e->getMessage());
         return false;
     }
-    
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$field];
-    }
-    
-    $stmt->close();
-    return false;
 }
 
-// Improved wallet function with prepared statements
+// Updated wallet function for PostgreSQL
 function wallet($con, $field, $id) {
     $allowed_fields = ['id', 'userid', 'amount', 'created_at', 'updated_at'];
     if (!in_array($field, $allowed_fields)) {
         return false;
     }
     
-    $stmt = $con->prepare("SELECT `$field` FROM `tbl_wallet` WHERE `userid` = ?");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT $field FROM tbl_wallet WHERE userid = ?");
+        $stmt->execute([$id]);
+        $result = $stmt->fetch();
+        
+        return $result ? $result[$field] : 0;
+    } catch (PDOException $e) {
+        error_log("Wallet query failed: " . $e->getMessage());
+        return 0;
     }
-    
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$field];
-    }
-    
-    $stmt->close();
-    return 0; // Return 0 for wallet amounts if not found
 }
 
-// Improved bonus function with prepared statements
+// Updated bonus function for PostgreSQL
 function bonus($con, $field, $id) {
     $allowed_fields = ['id', 'userid', 'amount', 'level1', 'level2', 'created_at', 'updated_at'];
     if (!in_array($field, $allowed_fields)) {
         return false;
     }
     
-    $stmt = $con->prepare("SELECT `$field` FROM `tbl_bonus` WHERE `userid` = ?");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT $field FROM tbl_bonus WHERE userid = ?");
+        $stmt->execute([$id]);
+        $result = $stmt->fetch();
+        
+        return $result ? $result[$field] : 0;
+    } catch (PDOException $e) {
+        error_log("Bonus query failed: " . $e->getMessage());
+        return 0;
     }
-    
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$field];
-    }
-    
-    $stmt->close();
-    return 0; // Return 0 for bonus amounts if not found
 }
 
-// Improved gameid function
+// Updated gameid function for PostgreSQL
 function gameid($con) {
-    $stmt = $con->prepare("SELECT `gameid` FROM `tbl_gameid` ORDER BY id DESC LIMIT 1");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT gameid FROM tbl_gameid ORDER BY id DESC LIMIT 1");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        
+        return $result ? $result['gameid'] : null;
+    } catch (PDOException $e) {
+        error_log("Game ID query failed: " . $e->getMessage());
+        return null;
     }
-    
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row['gameid'];
-    }
-    
-    $stmt->close();
-    return null;
 }
 
-// Improved content function
+// Updated content function for PostgreSQL
 function content($con, $page) {
     $allowed_pages = ['about', 'privacy', 'terms', 'support'];
     if (!in_array($page, $allowed_pages)) {
         return false;
     }
     
-    $stmt = $con->prepare("SELECT `$page` FROM `content` WHERE `id` = 1");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT $page FROM content WHERE id = 1");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        
+        return $result ? $result[$page] : '';
+    } catch (PDOException $e) {
+        error_log("Content query failed: " . $e->getMessage());
+        return '';
     }
-    
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$page];
-    }
-    
-    $stmt->close();
-    return '';
 }
 
-// Improved payment settings function
+// Updated payment settings function for PostgreSQL
 function minamountsetting($con, $page) {
     $allowed_settings = ['level1', 'level2', 'bonusamount', 'min_withdraw', 'min_recharge'];
     if (!in_array($page, $allowed_settings)) {
         return false;
     }
     
-    $stmt = $con->prepare("SELECT `$page` FROM `tbl_paymentsetting` WHERE `id` = 1");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT $page FROM tbl_paymentsetting WHERE id = 1");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        
+        return $result ? $result[$page] : 0;
+    } catch (PDOException $e) {
+        error_log("Payment setting query failed: " . $e->getMessage());
+        return 0;
     }
-    
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$page];
-    }
-    
-    $stmt->close();
-    return 0;
 }
 
 // Text truncation functions (unchanged)
@@ -251,225 +210,102 @@ function truncate2($mytext) {
     return $mytext;
 }
 
-// Improved site settings function
+// Updated site settings function for PostgreSQL
 function setting($con, $page) {
     $allowed_settings = ['site_name', 'site_logo', 'site_url', 'contact_email', 'contact_phone'];
     if (!in_array($page, $allowed_settings)) {
         return false;
     }
     
-    $stmt = $con->prepare("SELECT `$page` FROM `site_setting` WHERE `id` = 1");
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT $page FROM site_setting WHERE id = 1");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        
+        return $result ? $result[$page] : '';
+    } catch (PDOException $e) {
+        error_log("Setting query failed: " . $e->getMessage());
+        return '';
     }
-    
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$page];
-    }
-    
-    $stmt->close();
-    return '';
 }
 
-// Enhanced winner calculation function (kept original logic but with prepared statements)
+// Updated winner function for PostgreSQL
 function winner($con, $periodid, $tab, $column) {
-    $stmt = $con->prepare("SELECT 
-        (SUM(amount) - SUM(amount)/100*2) as tradeamountwithtax,
-        SUM(amount) as tradeamount,
-        SUM(CASE WHEN type = 'button' THEN amount END) button,
-        SUM(CASE WHEN value = 'Green' THEN amount END) as green,
-        (SUM(CASE WHEN value = 'Green' THEN amount END) - (SUM(CASE WHEN value = 'Green' THEN amount END)/100*2))*2 as greenwinamount,
-        (SUM(CASE WHEN value = 'Green' THEN amount END) - (SUM(CASE WHEN value = 'Green' THEN amount END)/100*2))*1.5 as greenwinamountwithviolet,
-        SUM(CASE WHEN value = 'Violet' THEN amount END) violet,
-        (SUM(CASE WHEN value = 'Violet' THEN amount END) - (SUM(CASE WHEN value = 'Violet' THEN amount END)/100*2))*4.5 as violetwinamount,
-        SUM(CASE WHEN value = 'Red' THEN amount END) red,
-        (SUM(CASE WHEN value = 'Red' THEN amount END) - (SUM(CASE WHEN value = 'Red' THEN amount END)/100*2))*2 as redwinamount,
-        (SUM(CASE WHEN value = 'Red' THEN amount END) - (SUM(CASE WHEN value = 'Red' THEN amount END)/100*2))*1.5 as redwinamountwithviolet,
-        SUM(CASE WHEN type = 'number' THEN amount END) number,
-        SUM(CASE WHEN value = '0' THEN amount END) `zero`,
-        (SUM(CASE WHEN value = '0' THEN amount END) - (SUM(CASE WHEN value = '0' THEN amount END)/100*2))*9 as zerowinamount,
-        SUM(CASE WHEN value = '1' THEN amount END) `one`,
-        (SUM(CASE WHEN value = '1' THEN amount END) - (SUM(CASE WHEN value = '1' THEN amount END)/100*2))*9 as onewinamount,
-        SUM(CASE WHEN value = '2' THEN amount END) `two`,
-        (SUM(CASE WHEN value = '2' THEN amount END) - (SUM(CASE WHEN value = '2' THEN amount END)/100*2))*9 as twowinamount,
-        SUM(CASE WHEN value = '3' THEN amount END) `three`,
-        (SUM(CASE WHEN value = '3' THEN amount END) - (SUM(CASE WHEN value = '3' THEN amount END)/100*2))*9 as threewinamount,
-        SUM(CASE WHEN value = '4' THEN amount END) `four`,
-        (SUM(CASE WHEN value = '4' THEN amount END) - (SUM(CASE WHEN value = '4' THEN amount END)/100*2))*9 as fourwinamount,
-        SUM(CASE WHEN value = '5' THEN amount END) `five`,
-        (SUM(CASE WHEN value = '5' THEN amount END) - (SUM(CASE WHEN value = '5' THEN amount END)/100*2))*9 as fivewinamount,
-        SUM(CASE WHEN value = '6' THEN amount END) `six`,
-        (SUM(CASE WHEN value = '6' THEN amount END) - (SUM(CASE WHEN value = '6' THEN amount END)/100*2))*9 as sixwinamount,
-        SUM(CASE WHEN value = '7' THEN amount END) `seven`,
-        (SUM(CASE WHEN value = '7' THEN amount END) - (SUM(CASE WHEN value = '7' THEN amount END)/100*2))*9 as sevenwinamount,
-        SUM(CASE WHEN value = '8' THEN amount END) `eight`,
-        (SUM(CASE WHEN value = '8' THEN amount END) - (SUM(CASE WHEN value = '8' THEN amount END)/100*2))*9 as eightwinamount,
-        SUM(CASE WHEN value = '9' THEN amount END) `nine`,
-        (SUM(CASE WHEN value = '9' THEN amount END) - (SUM(CASE WHEN value = '9' THEN amount END)/100*2))*9 as ninewinamount
-    FROM `tbl_betting` WHERE `periodid` = ? AND `tab` = ?");
-    
-    if (!$stmt) {
-        error_log("Prepare failed: " . $con->error);
-        return false;
+    try {
+        $stmt = $con->prepare("SELECT 
+            (SUM(amount) - SUM(amount)/100*2) as tradeamountwithtax,
+            SUM(amount) as tradeamount,
+            SUM(CASE WHEN type = 'button' THEN amount END) button,
+            SUM(CASE WHEN value = 'Green' THEN amount END) as green,
+            (SUM(CASE WHEN value = 'Green' THEN amount END) - (SUM(CASE WHEN value = 'Green' THEN amount END)/100*2))*2 as greenwinamount,
+            (SUM(CASE WHEN value = 'Green' THEN amount END) - (SUM(CASE WHEN value = 'Green' THEN amount END)/100*2))*1.5 as greenwinamountwithviolet,
+            SUM(CASE WHEN value = 'Violet' THEN amount END) violet,
+            (SUM(CASE WHEN value = 'Violet' THEN amount END) - (SUM(CASE WHEN value = 'Violet' THEN amount END)/100*2))*4.5 as violetwinamount,
+            SUM(CASE WHEN value = 'Red' THEN amount END) red,
+            (SUM(CASE WHEN value = 'Red' THEN amount END) - (SUM(CASE WHEN value = 'Red' THEN amount END)/100*2))*2 as redwinamount,
+            (SUM(CASE WHEN value = 'Red' THEN amount END) - (SUM(CASE WHEN value = 'Red' THEN amount END)/100*2))*1.5 as redwinamountwithviolet,
+            SUM(CASE WHEN type = 'number' THEN amount END) number,
+            SUM(CASE WHEN value = '0' THEN amount END) as zero,
+            (SUM(CASE WHEN value = '0' THEN amount END) - (SUM(CASE WHEN value = '0' THEN amount END)/100*2))*9 as zerowinamount,
+            SUM(CASE WHEN value = '1' THEN amount END) as one,
+            (SUM(CASE WHEN value = '1' THEN amount END) - (SUM(CASE WHEN value = '1' THEN amount END)/100*2))*9 as onewinamount,
+            SUM(CASE WHEN value = '2' THEN amount END) as two,
+            (SUM(CASE WHEN value = '2' THEN amount END) - (SUM(CASE WHEN value = '2' THEN amount END)/100*2))*9 as twowinamount,
+            SUM(CASE WHEN value = '3' THEN amount END) as three,
+            (SUM(CASE WHEN value = '3' THEN amount END) - (SUM(CASE WHEN value = '3' THEN amount END)/100*2))*9 as threewinamount,
+            SUM(CASE WHEN value = '4' THEN amount END) as four,
+            (SUM(CASE WHEN value = '4' THEN amount END) - (SUM(CASE WHEN value = '4' THEN amount END)/100*2))*9 as fourwinamount,
+            SUM(CASE WHEN value = '5' THEN amount END) as five,
+            (SUM(CASE WHEN value = '5' THEN amount END) - (SUM(CASE WHEN value = '5' THEN amount END)/100*2))*9 as fivewinamount,
+            SUM(CASE WHEN value = '6' THEN amount END) as six,
+            (SUM(CASE WHEN value = '6' THEN amount END) - (SUM(CASE WHEN value = '6' THEN amount END)/100*2))*9 as sixwinamount,
+            SUM(CASE WHEN value = '7' THEN amount END) as seven,
+            (SUM(CASE WHEN value = '7' THEN amount END) - (SUM(CASE WHEN value = '7' THEN amount END)/100*2))*9 as sevenwinamount,
+            SUM(CASE WHEN value = '8' THEN amount END) as eight,
+            (SUM(CASE WHEN value = '8' THEN amount END) - (SUM(CASE WHEN value = '8' THEN amount END)/100*2))*9 as eightwinamount,
+            SUM(CASE WHEN value = '9' THEN amount END) as nine,
+            (SUM(CASE WHEN value = '9' THEN amount END) - (SUM(CASE WHEN value = '9' THEN amount END)/100*2))*9 as ninewinamount
+        FROM tbl_betting WHERE periodid = ? AND tab = ?");
+        
+        $stmt->execute([$periodid, $tab]);
+        $result = $stmt->fetch();
+        
+        return $result ? ($result[$column] ?? 0) : 0;
+    } catch (PDOException $e) {
+        error_log("Winner query failed: " . $e->getMessage());
+        return 0;
     }
-    
-    $stmt->bind_param("ss", $periodid, $tab);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return $row[$column] ?? 0;
-    }
-    
-    $stmt->close();
-    return 0;
 }
 
 // Number mappings array
 $numbermappings = array("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine");
 
-// Enhanced user promo code function with prepared statements
-function userpromocode($con, $userid, $code, $tradeamount, $periodid) {
-    $today = date("Y-m-d H:i:s");
-    
-    // Get commission settings
-    $stmt = $con->prepare("SELECT * FROM `tbl_paymentsetting` WHERE `id` = 1");
-    $stmt->execute();
-    $commissionResult = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    
-    if (!$commissionResult) return false;
-    
-    $level1commission = $commissionResult['level1'];
-    $level2commission = $commissionResult['level2'];
-    $level1 = ($tradeamount * $level1commission / 100);
-    $level2 = ($tradeamount * $level2commission / 100);
-    
-    // Get user level information
-    $stmt = $con->prepare("SELECT `code`, 
-        (SELECT `id` FROM `tbl_user` WHERE `owncode` = ?) as level1id,
-        (SELECT `code` FROM `tbl_user` WHERE `owncode` = ?) as level1code 
-        FROM `tbl_user` WHERE `id` = ?");
-    
-    $stmt->bind_param("ssi", $code, $code, $userid);
-    $stmt->execute();
-    $userlevel1Result = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    
-    if (!$userlevel1Result) return false;
-    
-    $level1id = $userlevel1Result['level1id'];
-    $level1code = $userlevel1Result['level1code'];
-    
-    // Get level 2 user
-    $level2id = null;
-    if ($level1code) {
-        $stmt = $con->prepare("SELECT `id` FROM `tbl_user` WHERE `owncode` = ?");
-        $stmt->bind_param("s", $level1code);
-        $stmt->execute();
-        $userlevel2Result = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        
-        if ($userlevel2Result) {
-            $level2id = $userlevel2Result['id'];
-        }
-    }
-    
-    // Insert bonus summary
-    $stmt = $con->prepare("INSERT INTO `tbl_bonussummery`(`userid`, `periodid`, `level1id`, `level2id`, `level1amount`, `level2amount`, `tradeamount`, `createdate`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("isiiddds", $userid, $periodid, $level1id, $level2id, $level1, $level2, $tradeamount, $today);
-    $stmt->execute();
-    $stmt->close();
-    
-    // Update level 1 bonus
-    if ($level1id) {
-        $level1balance = bonus($con, 'level1', $level1id);
-        $finallevel1balance = $level1balance + $level1;
-        $bonusbalance1 = bonus($con, 'amount', $level1id);
-        $finalbonusbalance1 = $bonusbalance1 + $level1;
-        
-        $stmt = $con->prepare("UPDATE `tbl_bonus` SET `amount` = ?, `level1` = ? WHERE `userid` = ?");
-        $stmt->bind_param("ddi", $finalbonusbalance1, $finallevel1balance, $level1id);
-        $stmt->execute();
-        $stmt->close();
-    }
-    
-    // Update level 2 bonus
-    if ($level2id) {
-        $level2balance = bonus($con, 'level2', $level2id);
-        $finallevel2balance = $level2balance + $level2;
-        $bonusbalance2 = bonus($con, 'amount', $level2id);
-        $finalbonusbalance2 = $bonusbalance2 + $level2;
-        
-        $stmt = $con->prepare("UPDATE `tbl_bonus` SET `amount` = ?, `level2` = ? WHERE `userid` = ?");
-        $stmt->bind_param("ddi", $finalbonusbalance2, $finallevel2balance, $level2id);
-        $stmt->execute();
-        $stmt->close();
-    }
-    
-    return true;
+// Helper functions
+function sanitize_input($data) {
+    return htmlspecialchars(strip_tags(trim($data)));
 }
 
-// Enhanced invite bonus function
-function invitebonus($con, $userid, $refcode) {
-    // Check if user has made first recharge
-    $stmt = $con->prepare("SELECT * FROM `tbl_walletsummery` WHERE `userid` = ? AND `actiontype` = 'recharge'");
-    $stmt->bind_param("i", $userid);
-    $stmt->execute();
-    $chksummeryRow = $stmt->get_result()->num_rows;
-    $stmt->close();
-    
-    if ($chksummeryRow == 1) {
-        // Get referrer user ID
-        $stmt = $con->prepare("SELECT `id` FROM `tbl_user` WHERE `owncode` = ?");
-        $stmt->bind_param("s", $refcode);
-        $stmt->execute();
-        $userResult = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        
-        if (!$userResult) return false;
-        
-        $refuserid = $userResult['id'];
-        
-        // Get current bonus balance
-        $availableBalance = bonus($con, 'amount', $refuserid);
-        
-        // Get bonus amount from settings
-        $bonusAmount = minamountsetting($con, 'bonusamount');
-        $finalbonusbalance = $availableBalance + $bonusAmount;
-        $today = date("Y-m-d H:i:s");
-        
-        // Update bonus
-        $stmt = $con->prepare("UPDATE `tbl_bonus` SET `amount` = ?, `level1` = ? WHERE `userid` = ?");
-        $stmt->bind_param("ddi", $finalbonusbalance, $finalbonusbalance, $refuserid);
-        $stmt->execute();
-        $stmt->close();
-        
-        // Insert bonus summary
-        $stmt = $con->prepare("INSERT INTO `tbl_bonussummery`(`userid`, `periodid`, `level1id`, `level2id`, `level1amount`, `level2amount`, `tradeamount`, `createdate`) VALUES (?, '0', ?, '0', '110', '0', '0', ?)");
-        $stmt->bind_param("iis", $userid, $refuserid, $today);
-        $stmt->execute();
-        $stmt->close();
-        
-        return true;
-    }
-    
-    return false;
+function validate_email($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL);
 }
 
-// Enhanced base URL function
+function validate_mobile($mobile) {
+    return preg_match('/^[0-9]{10}$/', $mobile);
+}
+
+function hash_password($password) {
+    return password_hash($password, PASSWORD_DEFAULT);
+}
+
+function verify_password($password, $hash) {
+    return password_verify($password, $hash);
+}
+
 function getBaseUrl() {
     $currentPath = $_SERVER['PHP_SELF'];
     $pathInfo = pathinfo($currentPath);
     $hostName = $_SERVER['HTTP_HOST'];
     
-    // Detect protocol more reliably
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
                $_SERVER['SERVER_PORT'] == 443 ||
                (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
@@ -477,31 +313,6 @@ function getBaseUrl() {
     $protocol = $isHttps ? 'https://' : 'http://';
     
     return $protocol . $hostName . $pathInfo['dirname'] . '/';
-}
-
-// Helper function to sanitize input
-function sanitize_input($data) {
-    return htmlspecialchars(strip_tags(trim($data)));
-}
-
-// Helper function to validate email
-function validate_email($email) {
-    return filter_var($email, FILTER_VALIDATE_EMAIL);
-}
-
-// Helper function to validate mobile number
-function validate_mobile($mobile) {
-    return preg_match('/^[0-9]{10}$/', $mobile);
-}
-
-// Helper function to generate secure password hash
-function hash_password($password) {
-    return password_hash($password, PASSWORD_DEFAULT);
-}
-
-// Helper function to verify password
-function verify_password($password, $hash) {
-    return password_verify($password, $hash);
 }
 
 ?>
