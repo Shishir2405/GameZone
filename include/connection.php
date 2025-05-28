@@ -9,6 +9,7 @@ $password = $_ENV['MYSQLPASSWORD'] ?? $_SERVER['MYSQLPASSWORD'] ?? '';
 $database = $_ENV['MYSQLDATABASE'] ?? $_SERVER['MYSQLDATABASE'] ?? 'webservices_colour';
 $port = $_ENV['MYSQLPORT'] ?? $_SERVER['MYSQLPORT'] ?? 3306;
 
+
 // Establish database connection with proper error handling
 try {
     $con = new mysqli($host, $username, $password, $database, $port);

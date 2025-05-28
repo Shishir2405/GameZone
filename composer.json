@@ -1,5 +1,22 @@
 {
+  "name": "color-game/webapp",
+  "description": "Color Game Web Application",
+  "type": "project",
   "require": {
-    "php": "^8.0"
-  }
+    "php": "^8.2",
+    "ext-mysqli": "*",
+    "ext-openssl": "*"
+  },
+  "require-dev": {},
+  "autoload": {
+    "files": [
+      "include/connection.php"
+    ]
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
 }
