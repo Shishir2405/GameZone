@@ -4,17 +4,17 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: PGHOST
-        value: dpg-d0rkitp5pdvs73e381c0-a
-      - key: PGUSER
-        value: webservices_colour_user
-      - key: PGPASSWORD
-        value: 0r1wd0EzpKkObj5Ba8WFJ5q9BLTRXitL
-      - key: PGDATABASE
-        value: webservices_colour_user
-      - key: PGPORT
-        value: 5432
+      - key: MYSQLHOST
+        value: mysql.railway.internal
+      - key: MYSQLUSER
+        value: root
+      - key: MYSQLPASSWORD
+        value: eP0irvmTdOsjGKmbWybUGVbkhypYILSF
+      - key: MYSQLDATABASE
+        value: railway
+      - key: MYSQLPORT
+        value: 3306
       - key: ENCRYPTION_KEY
-        value: your-32-character-secret-key-here-123456789
+        value: your-32-character-secret-key-here
       - key: ENCRYPTION_IV
-        value: your-16-char-iv-12
+        value: your-16-character-iv-here
