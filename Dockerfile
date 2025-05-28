@@ -1,7 +1,9 @@
 FROM php:8.2-cli
 
-# Install mysqli extension
-RUN docker-php-ext-install mysqli
+# Install required PHP extensions
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    && docker-php-ext-install pdo pdo_pgsql
 
 # Set working directory
 WORKDIR /app
